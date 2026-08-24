@@ -1,26 +1,39 @@
-import bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
 import { logger } from '../lib/logger.js';
+import { authCredentialsSchema } from '../schemas/auth-schema.js';
+import { hashPassword, verifyPassword } from '../services/password-service.js';
 
-// In-memory user store for the demo. Keyed by email.
-const users = new Map<string, { id: string; email: string; passwordHash: string }>();
+interface StoredUser {
+  id: string;
+  email: string;
+  passwordHash: string;
+}
+
+/** In-memory user store for the demo. Keyed by email. */
+const users = new Map<string, StoredUser>();
 
 export const authController = {
+  /**
+   * Registers a new user with email and password.
+   *
+   * @param req - Express request. Body: `{ email, password }`.
+   * @param res - Express response.
+   * @returns 201 with `{ id, email }` on success.
+   * @throws {ZodError} When the body fails schema validation — the global
+   *   error handler converts it to a 400.
+   *
+   * @example
+   *   POST /auth/register { "email": "a@b.com", "password": "s3cr3t" }
+   *   → 201 { "id": "…", "email": "a@b.com" }
+   */
   register: async (req: Request, res: Response) => {
-    const { email, password } = req.body as { email?: string; password?: string };
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email and password are required' });
-    }
+    const { email, password } = authCredentialsSchema.parse(req.body);
 
     if (users.has(email)) {
-      return res.status(409).json({ error: 'email already registered' });
+      return res.status(409).json({ error: { code: 'CONFLICT', message: 'email already registered' } });
     }
 
-    // Inline password hashing — extract me into a password service
-    const saltRounds = 12;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
+    const passwordHash = await hashPassword(password);
     const id = crypto.randomUUID();
     users.set(email, { id, email, passwordHash });
 
@@ -28,23 +41,29 @@ export const authController = {
     return res.status(201).json({ id, email });
   },
 
+  /**
+   * Authenticates a user by email and password.
+   *
+   * @param req - Express request. Body: `{ email, password }`.
+   * @param res - Express response.
+   * @returns 200 with `{ id, email }` on success.
+   * @throws {ZodError} When the body fails schema validation — the global
+   *   error handler converts it to a 400.
+   *
+   * @example
+   *   POST /auth/login { "email": "a@b.com", "password": "s3cr3t" }
+   *   → 200 { "id": "…", "email": "a@b.com" }
+   */
   login: async (req: Request, res: Response) => {
-    const { email, password } = req.body as { email?: string; password?: string };
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email and password are required' });
-    }
+    const { email, password } = authCredentialsSchema.parse(req.body);
 
     const user = users.get(email);
-    if (!user) {
-      return res.status(401).json({ error: 'invalid credentials' });
-    }
+    const passwordHash = user?.passwordHash ?? '';
+    const valid = await verifyPassword(password, passwordHash);
 
-    // Inline password verification — extract me into a password service
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
-      logger.warn({ email }, 'Login failed: bad password');
-      return res.status(401).json({ error: 'invalid credentials' });
+    if (!user || !valid) {
+      logger.warn({ email }, 'Login failed: invalid credentials');
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'invalid credentials' } });
     }
 
     logger.info({ email }, 'User logged in');
