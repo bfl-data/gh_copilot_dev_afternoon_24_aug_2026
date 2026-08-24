@@ -17,6 +17,7 @@ app.get('/health', (_req, res) => {
 app.post('/auth/register', asyncHandler(authController.register));
 app.post('/auth/login', asyncHandler(authController.login));
 
+app.post('/customers', asyncHandler(userController.createCustomer));
 app.post('/users', asyncHandler(userController.create));
 app.get('/users', asyncHandler(userController.list));
 app.get('/users/:id', asyncHandler(userController.getById));

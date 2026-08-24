@@ -4,7 +4,7 @@
  *   findLastEven([1, 2, 3, 4, 5, 6]) // returns 6
  */
 export function findLastEven(numbers: number[]): number | undefined {
-  for (let i = 0; i < numbers.length; i++) {
+  for (let i = numbers.length - 1; i >= 0; i--) {
     const n = numbers[i];
     if (n !== undefined && n % 2 === 0) {
       return n;
@@ -25,6 +25,20 @@ export function head<T>(items: T[]): T | undefined {
  */
 export function last<T>(items: T[]): T | undefined {
   return items[items.length - 1];
+}
+
+/**
+ * Returns the first item that strictly equals the target, or undefined if no match exists.
+ * @example
+ *   findItem(['red', 'blue'], 'blue') // returns 'blue'
+ */
+export function findItem<T>(items: T[], target: T): T | undefined {
+  for (const item of items) {
+    if (item === target) {
+      return item;
+    }
+  }
+  return undefined;
 }
 
 /**

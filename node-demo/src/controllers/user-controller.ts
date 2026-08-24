@@ -17,6 +17,17 @@ interface UserProfile {
 /** In-memory profile store for the demo. Keyed by user id. */
 const profiles = new Map<string, UserProfile>();
 
+function createProfileFromRequestBody(body: unknown): UserProfile {
+  const { email, displayName } = createUserSchema.parse(body);
+
+  return {
+    id: crypto.randomUUID(),
+    email,
+    displayName,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 export const userController = {
   /**
    * Creates a user profile.
@@ -32,14 +43,28 @@ export const userController = {
    *   → 201 { "id": "…", "email": "a@b.com", "displayName": "Ada", "createdAt": "…" }
    */
   create: async (req: Request, res: Response) => {
-    const { email, displayName } = createUserSchema.parse(req.body);
+    const profile = createProfileFromRequestBody(req.body);
 
-    const profile: UserProfile = {
-      id: crypto.randomUUID(),
-      email,
-      displayName,
-      createdAt: new Date().toISOString(),
-    };
+    profiles.set(profile.id, profile);
+
+    logger.info({ userId: profile.id }, 'User profile created');
+    return res.status(201).json(profile);
+  },
+
+  /**
+   * Creates a user profile from the customer route.
+   *
+   * @param req - Express request. Body: `{ email, displayName }`.
+   * @param res - Express response.
+   * @returns 201 with the created profile.
+   * @throws {ZodError} When the body fails schema validation.
+   *
+   * @example
+   *   POST /customers { "email": "a@b.com", "displayName": "Ada" }
+   *   → 201 { "id": "…", "email": "a@b.com", "displayName": "Ada", "createdAt": "…" }
+   */
+  createCustomer: async (req: Request, res: Response) => {
+    const profile = createProfileFromRequestBody(req.body);
 
     profiles.set(profile.id, profile);
 
